@@ -1,13 +1,3 @@
-"""
-Simple Feed forward Neural Network from scratch implemented in Pytorch with various easy-use and helpful features
-"""
-import matplotlib.pyplot as plt
-from random import randint
-from torch.utils.data import DataLoader, Dataset
-import torch.nn.functional as fun
-import torch
-import numpy as np
-import pandas as pd
 import torch.nn as nn
 import warnings
 
@@ -32,41 +22,6 @@ class FocalvsNonFocalData(Dataset):
         self.root_dir = root_dir
         self.transform = transform
     
-    def __len__(self):
-        return(len(self.datasamples))
-    
-    def __getitem__(self,index):
-        sample = self.datasamples.iloc[index,:-1]
-        target = self.datasamples.iloc[index,-1]
-        return(sample.as_matrix(), target, index)
-
-    def return_dimension(self):
-        return(self.datasamples.shape[1])
-
-    def plotsample(self, index):
-        sample = self.datasamples.iloc[index,:-1].as_matrix()
-        plt.plot(sample)
-        plt.xlabel('time')
-        plt.ylabel('mV')
-        plt.show()
-
-    def return_statistics(self, index, prop = 'all'):
-        sample = np.array(self.datasamples.iloc[index,:-1].as_matrix())
-        mean = sample.mean()
-        std = sample.std()
-        var = sample.var()
-        minn = sample.min()
-        maxx = sample.max()
-        if prop == 'all':
-            print(" == Statistical values of the sample == ")
-            print("Mean: %f Standard Dev: %f Varience: %f Maximum: %f Minimum: %f", mean, std, var, minn, maxx)
-            print(" ====================================== ")
-        else:
-            stat_dict = {'mean':mean, 'std': std, 'var':var, 'min':minn, 'max':maxx}
-            if prop in list(stat_dict.keys()):
-                print(prop, stat_dict[prop])
-            else:
-                raise KeyError("The given key is not available. Make sure you used the correct key. Available keys: 'all','mean','std','var','min','max'")
 
     def visualize_dataset(self, start_index, end_index, criterion = 'all', label = 'all'):
         """
