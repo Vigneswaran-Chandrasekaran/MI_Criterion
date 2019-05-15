@@ -96,3 +96,5 @@ for epoch in range(epochs):
         y_pred = model(x)
         loss = criterion(y_pred, y)
         print(loss)
+riterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
