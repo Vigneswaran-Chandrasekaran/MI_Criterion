@@ -10,6 +10,7 @@ import numpy as np
 import torchvision
 import torch
 import keras
+import time
 
 def Kget_dists(X):
     """Keras code to compute the pairwise distance matrix for a set of
@@ -89,7 +90,9 @@ def mutual_estimate(activation, labels):
             
         act_MI_Y.append(H_Y_upper - hm_given_Y)          
     return(np.array(act_MI_X), np.array(act_MI_Y))
-    
+
+tic = time.time()
+print("Downloading dataset and preparing DataLoader")
 master_dataset = dataset.MNIST(root = './data', train = True, transform = transforms.ToTensor(), download = True )
 test_dataset = dataset.MNIST(root = './data', train = False, transform = transforms.ToTensor())
 train_dataset, val_dataset = data.random_split(master_dataset, (int(len(master_dataset)*0.8), int(len(master_dataset)*0.2)))
@@ -99,6 +102,8 @@ val_batch_size = 1200
 train_loader = DataLoader(dataset = train_dataset, batch_size = tr_batch_size, shuffle = True)
 val_loader = DataLoader(dataset = val_dataset, batch_size = val_batch_size, shuffle = True)
 test_loader = DataLoader(dataset = test_dataset, batch_size = tr_batch_size, shuffle = False)
+toc = time.time()
+print("Finished preparing. Total time elasped: "+str(toc - tic)+" seconds")
 
 class DeepNN(nn.Module):
 
@@ -133,23 +138,26 @@ class DeepNN(nn.Module):
         return([self.out1, self.out2, self.out3, self.out4, self.out5, self.out6]) 
 
 model = DeepNN(784, 1024, 1200, 1200, 1200, 200, 10)
+for mod in model.modules():
+    print(mod)
+exit(1)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
-check = torch.load('SaveModel_MI', map_location='cpu')
-aa = check['mut_Y']
-for i in aa:
-    print(i)
-exit(1)
+
 epochs = 1
 step_size = 10
+
 train_loss = []
 train_acc = []
 val_loss =[]
 val_acc = []
 mut_info_X_monitor = []
 mut_info_Y_monitor = []
-for epoch in range(epochs):
+print("Start training...")
 
+tic = time.time()
+for epoch in range(epochs):
+    tic_epo = time.time()
     epoch_loss = 0
     epoch_acc = 0
     epoch_val_loss = 0
@@ -193,12 +201,15 @@ for epoch in range(epochs):
     v_loss = epoch_val_loss/len(val_loader)
     val_loss.append(v_loss)
     val_acc.append(v_acc)
-    
+    toc_epo = time.time()
     print('Epoch %d/%d : ' %(epoch+1,epochs))
     print('Train loss: %.5f, Train acc: %.5f' %(tr_loss, tr_acc))    
     print('Validation loss: %.5f, Validation acc: %.5f' %(v_loss, v_acc))    
+    print('Time elasped: %f'%(toc_epo - tic_epo))
     print(" --------------------- ")
-
+    
+toc = time.time()
+print("Finished Training. Total time elasped: %f"%(toc - tic))
 plt.plot(range(1, epochs+1), val_loss, train_loss)
 plt.title('Loss monitor')
 plt.legend(['Val_loss', 'Train_loss'])
@@ -213,9 +224,12 @@ plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.show()
 
+# Pickle the model with all necessary details
+"""
 full_state = { 'epoch':epochs, 'state_dict':model.state_dict(), 'optimizer':optimizer.state_dict(), 
             'train_loss':train_loss, 'train_acc': train_acc,
             'val_loss':val_loss, 'val_acc':val_acc,
             'mut_X':mut_info_X_monitor, 'mut_Y':mut_info_Y_monitor}
             
 torch.save(full_state, 'SaveModel_MI')
+"""
