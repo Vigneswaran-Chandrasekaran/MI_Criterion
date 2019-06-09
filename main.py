@@ -57,6 +57,10 @@ class DeepNN(nn.Module):
         self.out6 = fun.softmax(self.output_layer(self.out5))
         return fun.softmax(self.out6, dim = 1)
 
+def clustering_neurons(neuronal_MI, k):
+    clusters = [[]*i for i in range(k)]
+
+
 @profile
 def pre_train_model(model):
     layers = [model.input_layer, model.hlayer1, model.hlayer2, model.hlayer3, model.hlayer4]
@@ -64,11 +68,14 @@ def pre_train_model(model):
         w_matrix = layers[l_indx].weight.data.clone().detach().numpy()
         b_matrix = layers[l_indx].bias.data.clone().detach().numpy()
         #load the input data X
+        """
         for j, (images, labels) in enumerate(val_loader):
             images = images.reshape(-1, 28*28).clone().detach().numpy()
             activation = np.dot(images,w_matrix.T) + b_matrix 
             activation = 1/(1 + np.exp(-activation))
-            
+        """
+        neuronal_MI = np.random.rand(b_matrix.shape[0])
+        clusters = clustering_neurons(neuronal_MI, k_value[l_indx])
     return(model)
 
 if __name__ == '__main__':        
