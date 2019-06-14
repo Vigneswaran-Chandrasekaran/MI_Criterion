@@ -1,13 +1,20 @@
-# InformationFlow_in_NeuralNetwork
-Visualize the flow of information along various layers of Neural Network.
+# HyperGraph based Information Theory approach for effective Pretraining
 
-Neural Networks are encoders of Information, when a huge information is given to Network, they are encoded and at each layer 
-relevant information about the target class is retained and other information is tailored out. 
+## Introduction
 
-Therefore Mutual information I(X;Y) = H(X) − H(X|Y) [X= Input data, Y= Target class], increases from first layer to last layer.
-While training, the mutual information is compressed and expands in such a way that Maximum inforamtion regarding Y is retained as 
-well as maximum irrelevant information for Y in X is removed. 
+Deep Learning (DL) - an integral part of neural network guarantees higher accuracy and 
+flexibility by learning to represent the world as nested hierarchy of Information, 
+with each defined in relation to simpler ones. Powerful features of DL such as increase 
+in robustness and performance of the model by increase in size of the data, learning 
+high-level features from the data incrementally without feature engineering and end-to-end 
+problem solving capability, make four among five researchers believe that the advent of 
+DL makes life easier. Pre-training is widely adapted in DL as it helps in finding better 
+starting point in loss topology for improved Empirical Risk Minimization. Particularly, 
+Unsupervised Pretraining focuses on effective Information feature transforming and representing 
+through layers, which reduce high time-consuming exploration phase of the Optimization algorithm. 
+Recent works on understanding unfathomable concepts of DL and various algorithms to improve 
+state-of-art methods through Information Theory based approach has proved very successful. 
+In this work we propose a novel Information Theory based Hypergraph approach to pretrain the model,
+which is very effecient.
 
-This repo can be used to check how the auto-encoding and flow of information in Neural Network is taking place, which can be 
-checked during the training phase and check the contribution of each hidden layer in minimizing last layer's cross-entropy error.
 
