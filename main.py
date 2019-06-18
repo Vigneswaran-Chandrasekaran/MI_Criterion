@@ -66,26 +66,27 @@ class DeepNN(nn.Module):
         
         return fun.softmax(self.out6, dim = 1)
 
-def stopping_criterion(iteration_count, clusters, bin_avg, neuronal_MI):
-    """
-    Check the current stage is sufficient to stop the iteration and 
-    move on to next layer
-    Criteria:
-    i) Calculate best bin average MI and assign it as best solution
-       and then assign average MI for bins. When weights are updated based on 
-       bin ranking, check how many overlaps have occured. 
-       If number of overlaps in each is equal or greater than degree of required overlapping,
-       then stop the freezing.
-    ii) If iteration_count > 50 (per se)
-    """
-    if iteration_count >= 50:
-        print("Iteration count reached maximum.. proceeding to next layer")
-        return True
     
-    
+def estimate_mutual_info(X, neurons, bins = 5):
+    neuronal_MI = np.zeros(neurons.shape[1])
+    index = 0
+    for Y in neurons.T:
+        sum = 0
+        for dim in range(X.shape[1]):
+            xy = np.histogram2d(X[:,dim], Y, bins)[0]
+            x = np.histogram(X[:,dim], bins)[0]
+            y = np.histogram(Y, bins)[0]
+            ent_x = -1 * np.sum( x / np.sum(x) * np.log( x / np.sum(x)))
+            ent_y = -1 * np.sum( y / np.sum(y) * np.log( y / np.sum(y)))
+            ent_xy = -1 * np.sum( xy / np.sum(xy) * np.log( xy / np.sum(xy)))
+            sum +=  ent_x + ent_y - ent_xy
+        neuronal_MI[index] += sum
+        index += 1
+        print(sum)
+    return(neuronal_MI)
 
 #@profile
-def pre_train_model(model):
+def pre_train_model(model, val_loader):
     
     layers = [model.input_layer, model.hlayer1, model.hlayer2, model.hlayer3, model.hlayer4]
     k_value = [10, 8, 5, 3, 2]
@@ -95,32 +96,30 @@ def pre_train_model(model):
         print("Working on layer: "+str(l_indx))
         w_matrix = layers[l_indx].weight.data.clone().detach().numpy()
         b_matrix = layers[l_indx].bias.data.clone().detach().numpy()
-    
         #load the input data X
-        if l_indx == 0:
-            for j, (images, labels) in enumerate(val_loader):
-                images = images.reshape(-1, 28*28).clone().detach().numpy()
-                activation = np.dot(images,w_matrix.T) + b_matrix 
-                activation = 1/(1 + np.exp(-activation))
-            X_input = images
-            H_activation = activation
-    
+        for _, (images, _) in enumerate(val_loader):
+
+            images = images.reshape(-1, 28*28).clone().detach().numpy()
+            activation = np.dot(images,w_matrix.T) + b_matrix 
+            activation = 1/(1 + np.exp(-activation))
+        tic_est = time.time()
         print("Estimation Information Theorotic quantities")
-        #neuronal_MI = calculate_fitness(X_input, H_activation)    
-        neuronal_MI = np.random.rand(b_matrix.shape[0])          # get MI between X_input and H_activation
+        neuronal_MI = estimate_mutual_info(images, activation)
+        toc_est = time.time()
+        print("Elasped time for estimation: "+str(round(toc_est-tic_est,1))+" seconds")
         # Get the index of sorted neurons based on MI value
         index_sorted = np.argsort(neuronal_MI)[::-1]
         #create clusters of given k value
-        clusters = np.array_split(index_sorted, k_value[l_indx])
 
+        clusters = np.array_split(index_sorted, k_value[l_indx])
         bin_avg = []
+        
         for i in clusters:
             bin_avg.append(np.sum(neuronal_MI[np.ix_(i)]) / neuronal_MI[np.ix_(i)].shape[0])
         
-        while not stopping_criterion(iteration_count, clusters, bin_avg, neuronal_MI):
-    
+        while not stopping_criterion(iteration_count, clusters, bin_avg, neuronal_MI):    
             iteration_count = 0
-    
+
             for bin in range(len(clusters)):
     
                 step_size,  = calculate_step_size(clusters[bin]) 
@@ -130,8 +129,7 @@ def pre_train_model(model):
                 iteration_count += 1
 
             activation = get_activation(l_indx, w_matrix, b_matrix)
-            #neuronal_MI = calculate_fitness(X_input, H_activation)    
-
+            
         model.input_layer.weight.data = w_matrix
         model.input_layer.weight.data = b_matrix
     
@@ -145,4 +143,4 @@ if __name__ == '__main__':
     train_loader, val_loader, test_loader = dataset_load(tr_batch_size, val_batch_size, val_split)
     model = DeepNN(784, 1024, 120, 20, 20, 20, 10)
     print("Pretraining phase..")
-    pre_trained_model = pre_train_model(model)
+    pre_trained_model = pre_train_model(model, val_loader)
