@@ -10,29 +10,112 @@ import numpy as np
 import torchvision
 import torch
 import time
+import math
 
-@profile
+#@profile     # to see the memory profile of the function uncomment the  @profile decorator
 def dataset_load(tr_batch_size, val_batch_size, val_split):
-    
     #Download and prepare dataset chunks by DataLoader
     tic = time.time()
     print("Downloading dataset and preparing DataLoader")
     master_dataset = dataset.MNIST(root = './data', train = True, transform = transforms.ToTensor(), download = True )
     test_dataset = dataset.MNIST(root = './data', train = False, transform = transforms.ToTensor())
-    
-    #Train and validation data is split with specified ratio ratio
+    #Train and validation data is split with specified ratio
     train_dataset, val_dataset = data.random_split(master_dataset, (int(len(master_dataset)*(1.0-val_split)), int(len(master_dataset)*val_split)))
-    
     #define dataloaders with defined batch size for training and validation
     train_loader = DataLoader(dataset = train_dataset, batch_size = tr_batch_size, shuffle = True)
+    # validation data is shuffled as validation set is used in pretraining and so to avoid any particular class bias
     val_loader = DataLoader(dataset = val_dataset, batch_size = val_batch_size, shuffle = True)
+    # shuffling test dataset is not required
     test_loader = DataLoader(dataset = test_dataset, batch_size = tr_batch_size, shuffle = False)
     toc = time.time()
-    
     print("Finished preparing. Total time elasped: "+str(toc - tic)+" seconds")
-    print("Memory profile for dataset_load(): ")
-    
     return( train_loader, val_loader, test_loader)
+
+def estimate_mutual_info(X, neurons, bins = 5):
+    #Estimate Mutual Information between Input data X and Neuron's activations
+    neuronal_MI = np.zeros(neurons.shape[1])
+    index = 0
+    for neuron in neurons.T:
+        #loop over each neuron 
+        # neuron is the activation of particular neuron for each input data X
+        for dim in X.T:
+            # loop over each dimension to estimate MI
+            # we assume each dimension is independent to each other..
+            # Ref: https://stats.stackexchange.com/questions/413511/mutual-information-between-multi-dimensional-and-single-dimensional-variables      
+            if np.amax(dim) != np.amin(dim):
+                #check whether the dimension have only one value throughout 
+                #normalize the values for faster computation
+                dim = (dim - np.amin(dim)) / (np.amax(dim) - np.amin(dim))
+                neuron = (neuron - np.amin(neuron)) / (np.amax(neuron) - np.amin(neuron))
+                #build histogram for joint X and Y
+                bins_xy = np.histogram2d(dim, neuron, bins)[0]
+                #histogram for X and Y marginal
+                bins_x = np.histogram(dim, bins)[0]
+                bins_y = np.histogram(neuron, bins)[0]
+                # check any sum is zero, although previos condition checks.. a defensive program
+                if np.sum(bins_x) != 0 and np.sum(bins_y) != 0 and np.sum(bins_xy) != 0:
+                    #calculate marginal probabilities
+                    p_x = bins_x / np.sum(bins_x)
+                    p_y = bins_y / np.sum(bins_y)
+                    #calculate joint probability
+                    p_xy = bins_xy / np.sum(bins_xy)
+                    #estimate entropy 
+                    H_x = -1 * np.sum( p_x * np.log(p_x))
+                    H_y = -1 * np.sum(p_y * np.log(p_y))
+                    H_xy = -1 * np.sum(p_xy * np.log(p_xy))
+                    #Mutual Information of the particular dimension and neuron out put 
+                    # I(X;Y) = H(X) + H(Y) - H(X,Y)
+                    sum = H_x + H_y - H_xy
+                    # check any is NaN.. This occurs sometimes because, in p_X * log(p_X), sometimes p_X becomes 0
+                    # making the whole term zero, but however in numpy this turns to become NaN...
+                    # TODO: Find a good way to handle this
+                    if not math.isnan(sum):
+                        # add the MI value to the corresponding neuron index
+                        neuronal_MI[index] += sum
+        index += 1    
+    # return array of mutual information corresponding to each neuron
+    return(neuronal_MI)
+
+#@profile
+def pre_train_model(model, val_loader):
+    
+    layers = [model.input_layer, model.hlayer1, model.hlayer2, model.hlayer3, model.hlayer4]
+    k_value = [10, 8, 5, 3, 2]
+    
+    for l_indx in range(len(layers)):
+    
+        print("Working on layer: "+str(l_indx))
+        w_matrix = layers[l_indx].weight.data.clone().detach().numpy()
+        b_matrix = layers[l_indx].bias.data.clone().detach().numpy()
+        #load the input data X
+        
+        for _, (images, _) in enumerate(val_loader):
+
+            images = images.reshape(-1, 28*28).clone().detach().numpy()
+            activation = np.dot(images,w_matrix.T) + b_matrix 
+            activation = 1/(1 + np.exp(-activation))
+
+            tic_est = time.time()
+            print("Estimation Information Theorotic quantities")
+            neuronal_MI = estimate_mutual_info(images, activation, bins = 2)
+            toc_est = time.time()
+        
+            print("Elasped time for estimation: "+str(round(toc_est-tic_est,1))+" seconds")
+            # Get the index of sorted neurons based on MI value
+            index_sorted = np.argsort(neuronal_MI)[::-1]
+            #create clusters of given k value
+
+            clusters = np.array_split(index_sorted, k_value[l_indx])
+            bin_avg = []
+            
+            for i in clusters:
+                bin_avg.append(np.sum(neuronal_MI[np.ix_(i)]) / neuronal_MI[np.ix_(i)].shape[0])
+            
+            print(neuronal_MI)
+            print(bin_avg)
+            exit(1)
+        
+    return(model)
 
 class DeepNN(nn.Module):
     """
@@ -67,73 +150,7 @@ class DeepNN(nn.Module):
         return fun.softmax(self.out6, dim = 1)
 
     
-def estimate_mutual_info(X, neurons, bins = 5):
-    neuronal_MI = np.zeros(neurons.shape[1])
-    index = 0
-    for Y in neurons.T:
-        sum = 0
-        for dim in range(X.shape[1]):
-            xy = np.histogram2d(X[:,dim], Y, bins)[0]
-            x = np.histogram(X[:,dim], bins)[0]
-            y = np.histogram(Y, bins)[0]
-            ent_x = -1 * np.sum( x / np.sum(x) * np.log( x / np.sum(x)))
-            ent_y = -1 * np.sum( y / np.sum(y) * np.log( y / np.sum(y)))
-            ent_xy = -1 * np.sum( xy / np.sum(xy) * np.log( xy / np.sum(xy)))
-            sum +=  ent_x + ent_y - ent_xy
-        neuronal_MI[index] += sum
-        index += 1
-        print(sum)
-    return(neuronal_MI)
 
-#@profile
-def pre_train_model(model, val_loader):
-    
-    layers = [model.input_layer, model.hlayer1, model.hlayer2, model.hlayer3, model.hlayer4]
-    k_value = [10, 8, 5, 3, 2]
-    
-    for l_indx in range(len(layers)):
-    
-        print("Working on layer: "+str(l_indx))
-        w_matrix = layers[l_indx].weight.data.clone().detach().numpy()
-        b_matrix = layers[l_indx].bias.data.clone().detach().numpy()
-        #load the input data X
-        for _, (images, _) in enumerate(val_loader):
-
-            images = images.reshape(-1, 28*28).clone().detach().numpy()
-            activation = np.dot(images,w_matrix.T) + b_matrix 
-            activation = 1/(1 + np.exp(-activation))
-        tic_est = time.time()
-        print("Estimation Information Theorotic quantities")
-        neuronal_MI = estimate_mutual_info(images, activation)
-        toc_est = time.time()
-        print("Elasped time for estimation: "+str(round(toc_est-tic_est,1))+" seconds")
-        # Get the index of sorted neurons based on MI value
-        index_sorted = np.argsort(neuronal_MI)[::-1]
-        #create clusters of given k value
-
-        clusters = np.array_split(index_sorted, k_value[l_indx])
-        bin_avg = []
-        
-        for i in clusters:
-            bin_avg.append(np.sum(neuronal_MI[np.ix_(i)]) / neuronal_MI[np.ix_(i)].shape[0])
-        
-        while not stopping_criterion(iteration_count, clusters, bin_avg, neuronal_MI):    
-            iteration_count = 0
-
-            for bin in range(len(clusters)):
-    
-                step_size,  = calculate_step_size(clusters[bin]) 
-                cost_function = calculate_cost_function(bin, clusters)
-                w_matrix[np.ix_(clusters[bin])] -= step_size * cost_function
-                b_matrix[np.ix_(clusters[bin])] -= step_size * cost_function
-                iteration_count += 1
-
-            activation = get_activation(l_indx, w_matrix, b_matrix)
-            
-        model.input_layer.weight.data = w_matrix
-        model.input_layer.weight.data = b_matrix
-    
-    return(model)
 
 if __name__ == '__main__':        
 
@@ -141,6 +158,6 @@ if __name__ == '__main__':
     val_batch_size = 12000
     val_split = 0.2
     train_loader, val_loader, test_loader = dataset_load(tr_batch_size, val_batch_size, val_split)
-    model = DeepNN(784, 1024, 120, 20, 20, 20, 10)
+    model = DeepNN(784, 20, 120, 20, 20, 20, 10)
     print("Pretraining phase..")
     pre_trained_model = pre_train_model(model, val_loader)

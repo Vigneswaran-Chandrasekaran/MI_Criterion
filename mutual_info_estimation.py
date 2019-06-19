@@ -3,6 +3,7 @@ MI calculation by Histogram method
 Reference:  The mutual information: detecting and evaluating 
 dependencies between variables by Steuer R
 https://doi.org/10.1093/bioinformatics/18.suppl_2.S231
+TODO: add other methods and check the robustness
 """
 
 import numpy as np
@@ -25,7 +26,6 @@ def estimate_mutual_info(X, neurons, bins = 5):
         neuronal_MI[index] += sum
         index += 1
     return(neuronal_MI)
-
 
 X = np.random.rand(12000, 1200)
 Y = np.random.rand(12000, 10)
