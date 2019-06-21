@@ -131,7 +131,7 @@ def pre_train_model(model, val_loader):
                 for bin in range(len(clusters)):
                     #TODO: parameter updation very important.... High priority    
                     # w_matrix have n number of rows with each row representing particular neuron connection
-                    w_matrix[np.ix_(clusters[bin])] -=  0.0001
+                    w_matrix[np.ix_(clusters[bin])] -=  (max(bin_avg) - bin_avg[bin]) * (1/(iteration+1))
                     b_matrix[np.ix_(clusters[bin])] -=  0.0001
                 #calculate activation for the updated weights 
                 activation = np.dot(images,w_matrix.T) + b_matrix 
@@ -139,16 +139,15 @@ def pre_train_model(model, val_loader):
                 #estimate MI for the tuned parameters
                 neuronal_MI = estimate_mutual_info(images, activation, bins = 2)
                 index_sorted = np.argsort(neuronal_MI)[::-1]
-                #create new clusters from the estimated weight
-                for neuron_mi in neuronal_MI:
-                    if neuron_mi >= bin_avg[0]:
-                        
-
+                clusters = np.array_split(index_sorted, k_value[l_indx])
+                # calculate the bin's avergage MI
+                bin_avg = []
+                for i in clusters:
+                    bin_avg.append(np.sum(neuronal_MI[np.ix_(i)]) / neuronal_MI[np.ix_(i)].shape[0])
+                print(bin_avg)
                 iteration += 1
                 if iteration == 3:
                     stopping_criteria = False
-            layers[l_indx].weight.data = w_matrix
-            layers[l_indx].bias.data = b_matrix
 
             exit(1)
     return(model)

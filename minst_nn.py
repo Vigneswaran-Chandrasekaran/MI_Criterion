@@ -137,7 +137,7 @@ class DeepNN(nn.Module):
     
         return([self.out1, self.out2, self.out3, self.out4, self.out5, self.out6]) 
 
-model = DeepNN(784, 1024, 1200, 1200, 1200, 200, 10)
+model = DeepNN(784, 1024, 20, 20, 20, 20, 10)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
 
