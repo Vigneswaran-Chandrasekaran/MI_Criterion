@@ -34,12 +34,12 @@ class DeepNN(nn.Module):
     # function to simulate forward propogation
     def forward(self, x):
         #propogation of each layer
-        self.out1 = fun.softmax(self.input_layer(x))
-        self.out2 = fun.softmax(self.hlayer1(self.out1))
-        self.out3 = fun.softmax(self.hlayer2(self.out2))
-        self.out4 = fun.softmax(self.hlayer3(self.out3))
-        self.out5 = fun.softmax(self.hlayer4(self.out4))
-        self.out6 = fun.softmax(self.output_layer(self.out5))
+        self.out1 = fun.relu(self.input_layer(x))
+        self.out2 = fun.relu(self.hlayer1(self.out1))
+        self.out3 = fun.relu(self.hlayer2(self.out2))
+        self.out4 = fun.relu(self.hlayer3(self.out3))
+        self.out5 = fun.relu(self.hlayer4(self.out4))
+        self.out6 = fun.relu(self.output_layer(self.out5))
         #output layer
         return fun.softmax(self.out6, dim = 1)
 
