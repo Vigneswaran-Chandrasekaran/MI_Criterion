@@ -1,0 +1,21 @@
+plots required:
+1) Accuracy plot with all W Inits
+2) Loss plot with all W Inits
+
+3) Loss plot with Adamax
+4) Acc plot with Adamax
+
+5) Loss plot with Adagrad
+6) Acc plot with Adagrad
+
+7) Loss plot with SGD
+8) Acc plot with SGD
+
+9) MI increase with iterations
+
+10) Weight distributions plot
+
+11) 5000 Epochs with proposed
+
+12) Weight movement 
+
