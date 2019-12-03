@@ -1,7 +1,7 @@
 from torch.utils import data
 from memory_profiler import profile
 from scipy.stats import entropy
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from fast_histogram import histogram1d, histogram2d
 import torchvision.transforms as transforms
 import torchvision.datasets as dataset
@@ -9,6 +9,7 @@ import torch.nn.functional as fun
 import matplotlib.pyplot as plt
 import torch.nn as nn
 import numpy as np
+import pandas as pd
 import torchvision
 import torch
 import time
@@ -43,8 +44,23 @@ class DeepNN(nn.Module):
         #output layer
         return fun.softmax(self.out6, dim = 1)
 
+class FashionMNIST(Dataset):
+    def __init__(self):
+        train_data = pd.read_csv("fashion-mnist_train.csv")
+        self.train_label = pd.DataFrame(train_data[["label"]].copy(deep=False))
+        train_input = pd.DataFrame(train_data.drop("label", 1, inplace=False))
+        self.train_input = (train_input - train_input.mean(axis=0)) / train_input.std(axis=0)
+        self.train_input = self.train_input.values
+        print(self.train_input.shape)
+        print(self.train_label.shape)
+
+    def __len__(self):
+        return self.train_input.shape[0]
+    def __getitem__(self, item):
+        return self.train_input[item]
+
 #@profile     # to see the memory profile of the function uncomment the  @profile decorator
-def dataset_load(tr_batch_size, val_batch_size, val_split):
+def mnist_dataset_load(tr_batch_size, val_batch_size, val_split):
     #Download and prepare dataset chunks by DataLoader
     tic = time.time()
     print("Downloading dataset and preparing DataLoader")
@@ -62,8 +78,40 @@ def dataset_load(tr_batch_size, val_batch_size, val_split):
     print("Finished preparing. Total time elasped: "+str(toc - tic)+" seconds")
     return( train_loader, val_loader, test_loader)
 
+def fashion_mnist_dataset_load(tr_batch_size, val_batch_size, val_split):
+    tic = time.time()
+    print("Downloading dataset and preparing DataLoader")
+    master_dataset = FashionMNIST()
+    train_dataset, val_dataset = data.random_split(master_dataset,
+                                                   (int(len(master_dataset) * (1.0 - val_split)), int(len(master_dataset) * val_split)))
+    # define dataloaders with defined batch size for training and validation
+    train_loader = DataLoader(dataset=train_dataset, batch_size=tr_batch_size, shuffle=True)
+    # validation data is shuffled as validation set is used in pretraining and so to avoid any particular class bias
+    val_loader = DataLoader(dataset=val_dataset, batch_size=val_batch_size, shuffle=True)
+    # shuffling test dataset is not required
+    toc = time.time()
+    print("Finished preparing. Total time elasped: " + str(toc - tic) + " seconds")
+    return (train_loader, val_loader)
+
+#@profile
 def estimate_mutual_info(X, neurons, bins = 5):
-    #Estimate Mutual Information between Input data X and Neuron's activations
+    """
+    Estimate Mutual Information between Input data X and Neuron activations. 
+    Uses fast_histogram library (https://github.com/astrofrog/fast-histogram) for binning procedure.
+
+    Parameters
+    ----------
+    X:  numpy array with shape N, dim
+        Input data of 'N' sample length and 'dim' dimension
+
+    neurons: numpy array with shape N, No_of_neurons
+            Activation of the Neurons for the input X. 
+
+    Returns
+    ------
+    neuronal_MI: list 
+                List of corresponding neuron's Mutual Information
+    """
     neuronal_MI = np.zeros(neurons.shape[1])
     index = 0
     print("Number of neurons computed:")
@@ -100,7 +148,7 @@ def estimate_mutual_info(X, neurons, bins = 5):
                     #Mutual Information of the particular dimension and neuron out put 
                     # I(X;Y) = H(X) + H(Y) - H(X,Y)
                     sum = H_x + H_y - H_xy
-                    # check any is NaN.. This occurs sometimes because, in p_X * log(p_X), sometimes p_X becomes 0
+                    # check any is NaN.. This occurs because, in p_X * log(p_X), sometimes p_X becomes 0
                     # making the whole term zero, but however in numpy this turns to become NaN...
                     # TODO: Find a good way to handle this
                     if not math.isnan(sum):
@@ -133,9 +181,9 @@ def pre_train_model(model, val_loader):
         b_matrix = layers[l_indx].bias.data.clone().detach().numpy()
         #load the input data X
         # use the validation dataset images as X
-        for _, (images, _) in enumerate(val_loader):
+        for _, images in enumerate(val_loader):
             global actX, act1, act2, act3, act4
-            # reshape images 
+            # reshape images
             images = images.reshape(-1, 28*28).clone().detach().numpy()
             # find the activaion by,
             # act( X.W_T + b)
@@ -146,18 +194,18 @@ def pre_train_model(model, val_loader):
             if l_indx == 0:    # First layer, which have actX as input images [immediate input to the layer]
                 actX = images   
             elif l_indx == 1:  # Second layer
-                layer1_param = np.load('weights_900_first_layer.npz') #load the saved updated weights and biases
+                layer1_param = np.load('weights_first_layer.npz') #load the saved updated weights and biases
                 # act1 contains the activations when the weights are updated, this acts as a input
                 # for subsequent layers
                 act1, actX = 1 / (1 + np.exp(-1 * (np.dot(images, layer1_param['w'].T) + layer1_param['b'])))  
             elif l_indx == 2:  # Third layer
-                layer2_param = np.load('weights_900_second_layer.npz')
+                layer2_param = np.load('weights_second_layer.npz')
                 act2, actX = 1 / ( 1 + np.exp(-1 * np.dot(act1, layer2_param['w'].T) + layer2_param['b']))
             elif l_indx == 3:  # Fourth layer
-                layer3_param = np.load('weights_900_third_layer.npz')
+                layer3_param = np.load('weights_third_layer.npz')
                 act3, actX = 1 / (1 + np.exp(-1 * (np.dot(act2,layer3_param['w'].T) + layer3_param['b'])))
             elif l_indx == 4:   # Fifth layer
-                layer4_param = np.load('weights_900_fourth_layer.npz')
+                layer4_param = np.load('weights_fourth_layer.npz')
                 act4, actX = 1 / (1 + np.exp(-1 * (np.dot(act3,layer4_param['w'].T) + layer4_param['b'])))
             # get the activation of the layer when actX , w_matrix and b_matrix are known
             activation = 1 / (1 + np.exp(-1 * (np.dot(actX,w_matrix.T) + b_matrix )))
@@ -223,8 +271,10 @@ if __name__ == '__main__':
     tr_batch_size = 4800
     val_batch_size = 12000
     val_split = 0.2
-    train_loader, val_loader, test_loader = dataset_load(tr_batch_size, val_batch_size, val_split)
+    _, val_loader = fashion_mnist_dataset_load(tr_batch_size, val_batch_size, val_split)
+
     actX = 0; act1 = 0; act2 = 0; act3 = 0; act4 = 0
-    model = DeepNN(784, 900, 20, 20, 20, 20, 10)
+    
+    model = DeepNN(784, 1024, 200, 20, 20, 20, 10)
     print("Pretraining phase..")
     pre_trained_model = pre_train_model(model, val_loader)

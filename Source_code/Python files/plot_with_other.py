@@ -1,11 +1,12 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-xl = np.load('Xavier_loss.npz')
-ol = np.load('Orthogonal_loss.npz')
-kl = np.load('Kaiming_loss.npz')
-pl = np.load('Proposed_loss_final.npz')
-nl = np.load('Normal_loss.npz')
+root = '../../MNIST/Saved_Metrics/'
+xl = np.load(root+'Xavier_loss.npz')
+ol = np.load(root+'Orthogonal_loss.npz')
+kl = np.load(root+'Kaiming_loss.npz')
+pl = np.load(root+'Proposed_loss_final.npz')
+nl = np.load(root+'Normal_loss.npz')
 
 
 plt.plot(range(100), xl['va'][0:100], label = 'Xavier')
@@ -18,11 +19,11 @@ plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-xl = np.load('Xavier_acc.npz')
-ol = np.load('Orthogonal_acc.npz')
-kl = np.load('Kaiming_acc.npz')
-pl = np.load('Proposed_acc_final.npz')
-nl = np.load('Normal_acc.npz')
+xl = np.load(root+'Xavier_acc.npz')
+ol = np.load(root+'Orthogonal_acc.npz')
+kl = np.load(root+'Kaiming_acc.npz')
+pl = np.load(root+'Proposed_acc_final.npz')
+nl = np.load(root+'Normal_acc.npz')
 
 
 plt.plot(range(100), xl['va'][0:100], label = 'Xavier')
